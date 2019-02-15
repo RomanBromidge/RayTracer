@@ -12,132 +12,226 @@ using glm::mat3;
 using glm::vec4;
 using glm::mat4;
 
-vector<Triangle> triangles;
-struct Intersection
-{
-  vec4 position;
-  float distance;
-  int triangleIndex;
+struct Intersection {
+	vec4 position;
+	float distance;
+	int triangleIndex;
 };
-float focalLength = 256;
-vec4 cameraPos(0, 0, -3, 1);
 
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 256
 #define FULLSCREEN_MODE false
 
+//Variables to store the camera parameters
+float focalLength = SCREEN_HEIGHT;
+vec4 cameraPos(0, 0, -3, 1);
+mat4 cameraRotMatrix;
+vector<Triangle> triangles;
+
+SDL_Event event;
+
+
 /* ----------------------------------------------------------------------------*/
-/* FUNCTIONS    
-change*/
+/* FUNCTIONS                                                                   */
 
-void Update();
+bool Update();
 void Draw(screen* screen);
-bool ClosestIntersection ( vec4 start,
-                           vec4 dir,
-                           const vector<Triangle>& triangles,
-                           Intersection& closestIntersection );
+bool ClosestIntersection(vec4 start,
+	vec4 dir,
+	const vector<Triangle>& triangles,
+	Intersection& closestIntersection);
+void Rotate(mat3 rotation);
+mat3 RotMatrixX(float angle);
+mat3 RotMatrixY(float angle);
 
-int main( int argc, char* argv[] )
+int main(int argc, char* argv[])
 {
 
-  screen *screen = InitializeSDL( SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE );
+	screen *screen = InitializeSDL(SCREEN_WIDTH, SCREEN_HEIGHT, FULLSCREEN_MODE);
+	LoadTestModel(triangles);
 
-  LoadTestModel( triangles );
+	//Fill the cameraRotMatrix with the identity matrix
+	vec4 x0(1,0,0,0);
+	vec4 x1(0,1,0,0);
+	vec4 x2(0,0,1,0);
+	vec4 x3(0,0,0,1);
+	cameraRotMatrix = mat4(x0,x1,x2,x3);
 
-  while( NoQuitMessageSDL() )
-    {
-      Update();
-      Draw(screen);
-      SDL_Renderframe(screen);
-    }
+	while (Update())
+	{
+		Draw(screen);
+		SDL_Renderframe(screen);
+	}
 
-  SDL_SaveImage( screen, "screenshot.bmp" );
+	SDL_SaveImage(screen, "screenshot.bmp");
 
-  KillSDL(screen);
-  return 0;
+	KillSDL(screen);
+	return 0;
 }
 
-//Finds the closest intersection between a ray and a triangle
-bool ClosestIntersection ( vec4 start,
-                           vec4 dir,
-                           const vector<Triangle>& triangles,
-                           Intersection& closestIntersection )
-{
-  //Max size of float
-  float m = std::numeric_limits<float>::max();
-  float smallest_d = m;
-  bool intersection_found = false;
-  //Find size of triangles vector
-  int tri_size = triangles.size();
-  //For each triangle find an intersection point x
-  for (int i = 0; i < tri_size; i++) {
-    vec4 v0 = triangles[i].v0;
-    vec4 v1 = triangles[i].v1;
-    vec4 v2 = triangles[i].v2;
+//Function that takes a ray and finds the closest intersecting geometry
+bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles, Intersection& closestIntersection) {
 
-    vec3 e1 = vec3(v1 - v0);
-    vec3 e2 = vec3(v2 - v0);
-    vec3 b = vec3(start - v0);
+	bool closestIntersectionFound = false;
 
-    mat3 A( -vec3(dir), e1, e2 );
-    if (glm::determinant(A) != 0) {
-      vec3 x = glm::inverse( A ) * b;
+	//Max size of float
+	closestIntersection.distance = std::numeric_limits<float>::max();
 
-      float t = x.x;
-      float u = x.y;
-      float v = x.z;
+	//For each triangle find intersection point x
+	for (int i = 0; i < triangles.size(); i++) {
+		vec4 v0 = triangles[i].v0;
+		vec4 v1 = triangles[i].v1;
+		vec4 v2 = triangles[i].v2;
 
-      if (t < smallest_d) {
-        //Check intersection conditions satisfied
-        if (0 <= u && 0 <= v && u + v <= 1 && 0 <= t) {
-          //Set values for the intersection
-          intersection_found = true;
-          closestIntersection.position = start + t * dir;
-          closestIntersection.distance = t;
-          closestIntersection.triangleIndex = i;
-        }
-      }
-    }
-  }
-  return intersection_found;
+		vec3 e1 = vec3(v1 - v0);
+		vec3 e2 = vec3(v2 - v0);
+		vec3 b = vec3(start - v0);
+
+		mat3 A(-vec3(dir), e1, e2);
+		if (glm::determinant(A) != 0) {
+
+			vec3 x = glm::inverse(A) * b;
+
+			float t = x.x;
+			float u = x.y;
+			float v = x.z;
+
+			if (t >= 0) {
+
+				if ((0 <= u) && (0 <= v) && (u + v) <= 1) {
+
+					if (t < closestIntersection.distance) {
+						closestIntersectionFound = true;
+						//Set values for the intersection
+						closestIntersection.position = start + dir * t;
+						closestIntersection.distance = t;
+						closestIntersection.triangleIndex = i;
+					}
+				}
+			}
+
+		}
+	}
+	return closestIntersectionFound;
 }
 
 /*Place your drawing here*/
-void Draw(screen* screen)
-{
-  /* Clear buffer */
-  memset(screen->buffer, 0, screen->height*screen->width*sizeof(uint32_t));
+void Draw(screen* screen) {
+	//Clear buffer
+	memset(screen->buffer, 0, screen->height*screen->width * sizeof(uint32_t));
 
-  //Iterate over each pixel in the image
-  for (int x = 0; x < SCREEN_WIDTH; x++) {
-    for (int y = 0; y < SCREEN_HEIGHT; y++) {
-      //Compute ray direction & start point
-      vec4 s = cameraPos;
-      vec4 d = vec4(x - (SCREEN_WIDTH/2), y - (SCREEN_HEIGHT/2), focalLength, 1);
-      //Get closest intersection
-      Intersection closest = {
-        .position = vec4(0, 0, 0, 0),
-        .distance = 0,
-        .triangleIndex = 0
-      };
-      if (ClosestIntersection(s, d, triangles, closest)) {
-        //Set colour of pixel to colour of intersected triangle
-        vec3 col = triangles[closest.triangleIndex].color;
-        PutPixelSDL(screen, x, y, col);
-      }
-    }
-  }
+	//Iterate through every pixel in the image
+	for (int y = 0; y < SCREEN_HEIGHT; y++) {
+		for (int x = 0; x < SCREEN_WIDTH; x++) {
+
+			//Compute the corresponding ray direction
+			vec4 rayDirection(x - SCREEN_WIDTH * 0.5, y - SCREEN_HEIGHT * 0.5, focalLength, 1);
+
+			//
+			rayDirection = rayDirection*cameraRotMatrix;
+
+			//Call the function ClosestIntersection to get the closest intersection in that direction
+			Intersection closestIntersectionItem;
+			if (ClosestIntersection(cameraPos, rayDirection, triangles, closestIntersectionItem)) {
+				//The color of the pixel should be set to the color of that triangle
+				PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color);
+			}
+			else {
+				//It should be black
+				vec3 colour(0.0, 0.0, 0.0);
+				PutPixelSDL(screen, x, y, colour);
+			}
+		}
+	}
+}
+
+mat3 RotMatrixX(float angle){
+	vec3 x0(1, 0, 0);
+	vec3 x1(0, cosf(angle), sinf(angle));
+	vec3 x2(0, -sinf(angle), cosf(angle));
+
+	return mat3(x0,x1,x2);
+}
+
+mat3 RotMatrixY(float angle){
+	vec3 y1(cosf(angle), 0, -sinf(angle));
+	vec3 y2(0, 1, 0);
+	vec3 y3(sinf(angle), 0, cosf(angle));
+
+	return mat3(y1,y2,y3);
+}
+
+void Rotate(mat3 rotation){
+	mat3 cameraRotExtract(cameraRotMatrix[0][0], cameraRotMatrix[0][1], cameraRotMatrix[0][2],
+													 cameraRotMatrix[1][0], cameraRotMatrix[1][1], cameraRotMatrix[1][2],
+												 	 cameraRotMatrix[2][0], cameraRotMatrix[2][1], cameraRotMatrix[2][2]);
+
+	cameraRotExtract = rotation * cameraRotExtract;
+
+	cameraRotMatrix[0][0] = cameraRotExtract[0][0];
+	cameraRotMatrix[0][1] = cameraRotExtract[0][1];
+	cameraRotMatrix[0][2] = cameraRotExtract[0][2];
+	cameraRotMatrix[1][0] = cameraRotExtract[1][0];
+	cameraRotMatrix[1][1] = cameraRotExtract[1][1];
+	cameraRotMatrix[1][2] = cameraRotExtract[1][2];
+	cameraRotMatrix[2][0] = cameraRotExtract[2][0];
+	cameraRotMatrix[2][1] = cameraRotExtract[2][1];
+	cameraRotMatrix[2][2] = cameraRotExtract[2][2];
 }
 
 /*Place updates of parameters here*/
-void Update()
+bool Update()
 {
-  static int t = SDL_GetTicks();
-  /* Compute frame time */
-  int t2 = SDL_GetTicks();
-  float dt = float(t2-t);
-  t = t2;
-  /*Good idea to remove this*/
-  std::cout << "Render time: " << dt << " ms." << std::endl;
-  /* Update variables*/
+	static int t = SDL_GetTicks();
+	/* Compute frame time */
+	int t2 = SDL_GetTicks();
+	float dt = float(t2 - t);
+	t = t2;
+
+	float angle = 0.01;
+
+	SDL_Event e;
+	while (SDL_PollEvent(&e))
+	{
+		if (e.type == SDL_QUIT)
+		{
+			return false;
+		}
+		else
+			if (e.type == SDL_KEYDOWN)
+			{
+				int key_code = e.key.keysym.sym;
+				switch (key_code)
+				{
+				case SDLK_UP:
+					/* Move camera forward */
+					//cameraPos.z += step;
+					/*Rotate camera upwards on X axis */
+					Rotate(RotMatrixX(-angle));
+					break;
+				case SDLK_DOWN:
+					/* Move camera backwards */
+					//cameraPos.z -= step;
+					/*Rotate camera downwards on X axis */
+					Rotate(RotMatrixX(angle));
+					break;
+				case SDLK_LEFT:
+					/* Move camera left */
+					//cameraPos.x += step;
+					/*Rotate camera left on Y axis */
+					Rotate(RotMatrixY(angle));
+					break;
+				case SDLK_RIGHT:
+					/* Move camera right */
+					//cameraPos.x -= step;
+					/*Rotate camera right on Y axis */
+					Rotate(RotMatrixY(-angle));
+					break;
+				case SDLK_ESCAPE:
+					/* Move camera quit */
+					return false;
+				}
+			}
+	}
+	return true;
 }
