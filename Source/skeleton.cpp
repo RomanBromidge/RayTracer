@@ -27,7 +27,8 @@ vec4 cameraPos(0, 0, -3, 1);
 #define FULLSCREEN_MODE false
 
 /* ----------------------------------------------------------------------------*/
-/* FUNCTIONS                                                                   */
+/* FUNCTIONS    
+change*/
 
 void Update();
 void Draw(screen* screen);
