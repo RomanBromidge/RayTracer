@@ -204,6 +204,7 @@ bool Update()
 	t = t2;
 
 	float angle = 0.01;
+	int step = 1;
 
 	SDL_Event e;
 	while (SDL_PollEvent(&e))
@@ -242,6 +243,33 @@ bool Update()
 					/*Rotate camera right on Y axis */
 					Rotate(RotMatrixY(-angle));
 					break;
+
+				//Camera Movement
+				case SDLK_w:
+					/*Move light forward*/
+					lightPos.z += step;
+					break;
+				case SDLK_s:
+					/*Move light backwards*/
+					lightPos.z -= step;
+					break;
+				case SDLK_q:
+					/*Move light up*/
+					lightPos.y += step;
+					break;
+				case SDLK_e:
+					/*Move light down*/
+					lightPos.y -= step;
+					break;
+				case SDLK_a:
+					/*Move light left*/
+					lightPos.x -= step;
+					break;
+				case SDLK_d:
+					/*Move light right*/
+					lightPos.x += step;
+					break;
+
 				case SDLK_ESCAPE:
 					/* Move camera quit */
 					return false;
