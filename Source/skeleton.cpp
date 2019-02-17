@@ -148,7 +148,8 @@ void Draw(screen* screen) {
 				//The color of the pixel should be set to the color of that triangle
 				//PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color);
 				//The color of the pixel is set to the percentage of light that hits it
-				PutPixelSDL(screen, x, y, DirectLight(closestIntersectionItem));
+				//PutPixelSDL(screen, x, y, DirectLight(closestIntersectionItem));
+				PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color * DirectLight(closestIntersectionItem));
 
 			}
 			else {
