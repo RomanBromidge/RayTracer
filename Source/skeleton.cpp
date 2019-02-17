@@ -26,23 +26,35 @@ struct Intersection {
 float focalLength = SCREEN_HEIGHT;
 vec4 cameraPos(0, 0, -3, 1);
 mat4 cameraRotMatrix;
+
+//Define light by its position and colour
+vec4 lightPos(0, -0.5, -0.7, 1.0);
+vec3 lightColor = 14.f * vec3(1, 1, 1);
+
 vector<Triangle> triangles;
 
 SDL_Event event;
-
 
 /* ----------------------------------------------------------------------------*/
 /* FUNCTIONS                                                                   */
 
 bool Update();
 void Draw(screen* screen);
+
 bool ClosestIntersection(vec4 start,
 	vec4 dir,
 	const vector<Triangle>& triangles,
 	Intersection& closestIntersection);
+
 void Rotate(mat3 rotation);
 mat3 RotMatrixX(float angle);
 mat3 RotMatrixY(float angle);
+
+vec3 DirectLight(const Intersection& i);
+
+double Find3Distance(vec3 vectorOne, vec3 vectorTwo);
+
+void NormaliseVec(vec3 vec);
 
 int main(int argc, char* argv[])
 {
@@ -134,7 +146,10 @@ void Draw(screen* screen) {
 			Intersection closestIntersectionItem;
 			if (ClosestIntersection(cameraPos, rayDirection, triangles, closestIntersectionItem)) {
 				//The color of the pixel should be set to the color of that triangle
-				PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color);
+				//PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color);
+				//The color of the pixel is set to the percentage of light that hits it
+				PutPixelSDL(screen, x, y, DirectLight(closestIntersectionItem));
+
 			}
 			else {
 				//It should be black
@@ -234,4 +249,61 @@ bool Update()
 			}
 	}
 	return true;
+}
+
+//Function that takes an intersection and returns the color of the triangle
+vec3 DirectLight(const Intersection& i) {
+
+	vec3 updatedColor;
+
+	vec3 n = triangles[i.triangleIndex].normal;
+	vec3 r;
+	r.x = lightPos.x - i.position.x;
+	r.y = lightPos.y - i.position.y;
+	r.z = lightPos.z - i.position.z;
+
+	//Normalise vectors n and r
+	NormaliseVec(n);
+	NormaliseVec(r);
+
+	double dotProduct = (n.x * r.x) + (n.y * r.y) + (n.z * r.z);
+
+	if (dotProduct > 0) {
+
+		//Find the distance between the lightPos and the intersection
+		double d = Find3Distance(lightPos, vec3(i.position));
+
+		//Calculate the number (0 < n < 1) with which the power P of the light (lightColor) will be multiplied with
+		double percentage = dotProduct / (4 * M_PI * d);
+		
+		//Calculate the new value of light for the intersection
+		updatedColor.x = lightColor.x * percentage;
+		updatedColor.y = lightColor.y * percentage;
+		updatedColor.z = lightColor.z * percentage;
+	}
+	else {
+		updatedColor.x = 0;
+		updatedColor.y = 0;
+		updatedColor.z = 0;
+	}
+
+	return updatedColor;
+}
+
+double Find3Distance(vec3 vectorOne, vec3 vectorTwo) {
+
+	double sqrDifferenceX = (vectorOne.x - vectorTwo.x)*(vectorOne.x - vectorTwo.x);
+	double sqrDifferenceY = (vectorOne.y - vectorTwo.y)*(vectorOne.y - vectorTwo.y);
+	double sqrDifferenceZ = (vectorOne.z - vectorTwo.z)*(vectorOne.z - vectorTwo.z);
+	double root = sqrt(sqrDifferenceX + sqrDifferenceY + sqrDifferenceZ);
+
+	return root;
+}
+
+void NormaliseVec(vec3 vec) {
+	double length = sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
+
+	vec.x = vec.x / length;
+	vec.y = vec.y / length;
+	vec.z = vec.z / length;
 }
