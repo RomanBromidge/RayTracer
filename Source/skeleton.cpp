@@ -302,7 +302,7 @@ vec3 DirectLight(const Intersection& i) {
 		double d = Find3Distance(lightPos, vec3(i.position));
 
 		//Calculate the number (0 < n < 1) with which the power P of the light (lightColor) will be multiplied with
-		double percentage = dotProduct / (4 * M_PI * d);
+		double percentage = dotProduct / (4 * M_PI * d * d);
 		
 		//Calculate the new value of light for the intersection
 		updatedColor.x = lightColor.x * percentage;
