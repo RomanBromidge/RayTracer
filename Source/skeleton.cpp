@@ -44,8 +44,7 @@ void Draw(screen* screen);
 bool ClosestIntersection(vec4 start,
 	vec4 dir,
 	const vector<Triangle>& triangles,
-	Intersection& closestIntersection,
-	int =-1);
+	Intersection& closestIntersection);
 
 void Rotate(mat3 rotation);
 mat3 RotMatrixX(float angle);
@@ -83,7 +82,7 @@ int main(int argc, char* argv[])
 }
 
 //Function that takes a ray and finds the closest intersecting geometry
-bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles, Intersection& closestIntersection, int exclude) {
+bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles, Intersection& closestIntersection) {
 
 	bool closestIntersectionFound = false;
 
@@ -92,35 +91,33 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 
 	//For each triangle find intersection point x
 	for (int i = 0; i < triangles.size(); i++) {
-		if (i != exclude) {
-			vec4 v0 = triangles[i].v0;
-			vec4 v1 = triangles[i].v1;
-			vec4 v2 = triangles[i].v2;
+		vec4 v0 = triangles[i].v0;
+		vec4 v1 = triangles[i].v1;
+		vec4 v2 = triangles[i].v2;
 
-			vec3 e1 = vec3(v1 - v0);
-			vec3 e2 = vec3(v2 - v0);
-			vec3 b = vec3(start - v0);
+		vec3 e1 = vec3(v1 - v0);
+		vec3 e2 = vec3(v2 - v0);
+		vec3 b = vec3(start - v0);
 
-			mat3 A(-vec3(dir), e1, e2);
-			if (glm::determinant(A) != 0) {
+		mat3 A(-vec3(dir), e1, e2);
+		if (glm::determinant(A) != 0) {
 
-				vec3 x = glm::inverse(A) * b;
+			vec3 x = glm::inverse(A) * b;
 
-				float t = x.x;
-				float u = x.y;
-				float v = x.z;
+			float t = x.x;
+			float u = x.y;
+			float v = x.z;
 
-				if (t >= 0) {
+			if (t >= 0) {
 
-					if ((0 <= u) && (0 <= v) && (u + v) <= 1) {
+				if ((0 <= u) && (0 <= v) && (u + v) <= 1) {
 
-						if (t < closestIntersection.distance) {
-							closestIntersectionFound = true;
-							//Set values for the intersection
-							closestIntersection.position = start + dir * t;
-							closestIntersection.distance = t;
-							closestIntersection.triangleIndex = i;
-						}
+					if (t < closestIntersection.distance) {
+						closestIntersectionFound = true;
+						//Set values for the intersection
+						closestIntersection.position = start + dir * t;
+						closestIntersection.distance = t;
+						closestIntersection.triangleIndex = i;
 					}
 				}
 			}
@@ -207,7 +204,7 @@ bool Update()
 	t = t2;
 
 	float angle = 0.01;
-	int step = 1;
+	float step = 0.2f;
 
 	SDL_Event e;
 	while (SDL_PollEvent(&e))
@@ -304,7 +301,7 @@ vec3 DirectLight(const Intersection& i) {
 	//Calculate the closestIntersection of the intersection in the direction of the light
 	Intersection closestIntersectionItem;
 
-	if (ClosestIntersection(i.position+0.0001f*n, r, triangles, closestIntersectionItem, i.triangleIndex)) {		
+	if (ClosestIntersection(i.position+0.0001f*n, r, triangles, closestIntersectionItem)) {		
 		if(closestIntersectionItem.distance>0.f && closestIntersectionItem.distance < d) {
 			return updatedColor;
 		}
