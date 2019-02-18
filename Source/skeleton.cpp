@@ -31,6 +31,8 @@ mat4 cameraRotMatrix;
 vec4 lightPos(0, -0.5, -0.7, 1.0);
 vec3 lightColor = 14.f * vec3(1, 1, 1);
 
+vec3 indirectLight = 0.5f*vec3(1, 1, 1);
+
 vector<Triangle> triangles;
 
 SDL_Event event;
@@ -138,17 +140,17 @@ void Draw(screen* screen) {
 			//Compute the corresponding ray direction
 			vec4 rayDirection(x - SCREEN_WIDTH * 0.5, y - SCREEN_HEIGHT * 0.5, focalLength, 1);
 
-			//
 			rayDirection = rayDirection*cameraRotMatrix;
 
 			//Call the function ClosestIntersection to get the closest intersection in that direction
 			Intersection closestIntersectionItem;
 			if (ClosestIntersection(cameraPos, rayDirection, triangles, closestIntersectionItem)) {
+				vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
 				//The color of the pixel should be set to the color of that triangle
 				//PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color);
 				//The color of the pixel is set to the percentage of light that hits it
 				//PutPixelSDL(screen, x, y, DirectLight(closestIntersectionItem));
-				PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color * DirectLight(closestIntersectionItem));
+				PutPixelSDL(screen, x, y, color);
 
 			}
 			else {
