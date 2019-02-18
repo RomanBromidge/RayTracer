@@ -44,7 +44,8 @@ void Draw(screen* screen);
 bool ClosestIntersection(vec4 start,
 	vec4 dir,
 	const vector<Triangle>& triangles,
-	Intersection& closestIntersection);
+	Intersection& closestIntersection,
+	int =-1);
 
 void Rotate(mat3 rotation);
 mat3 RotMatrixX(float angle);
@@ -54,7 +55,7 @@ vec3 DirectLight(const Intersection& i);
 
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo);
 
-void NormaliseVec(vec3 vec);
+vec4 NormaliseVec(vec4 vec);
 
 int main(int argc, char* argv[])
 {
@@ -82,7 +83,7 @@ int main(int argc, char* argv[])
 }
 
 //Function that takes a ray and finds the closest intersecting geometry
-bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles, Intersection& closestIntersection) {
+bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles, Intersection& closestIntersection, int exclude) {
 
 	bool closestIntersectionFound = false;
 
@@ -91,37 +92,38 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 
 	//For each triangle find intersection point x
 	for (int i = 0; i < triangles.size(); i++) {
-		vec4 v0 = triangles[i].v0;
-		vec4 v1 = triangles[i].v1;
-		vec4 v2 = triangles[i].v2;
+		if (i != exclude) {
+			vec4 v0 = triangles[i].v0;
+			vec4 v1 = triangles[i].v1;
+			vec4 v2 = triangles[i].v2;
 
-		vec3 e1 = vec3(v1 - v0);
-		vec3 e2 = vec3(v2 - v0);
-		vec3 b = vec3(start - v0);
+			vec3 e1 = vec3(v1 - v0);
+			vec3 e2 = vec3(v2 - v0);
+			vec3 b = vec3(start - v0);
 
-		mat3 A(-vec3(dir), e1, e2);
-		if (glm::determinant(A) != 0) {
+			mat3 A(-vec3(dir), e1, e2);
+			if (glm::determinant(A) != 0) {
 
-			vec3 x = glm::inverse(A) * b;
+				vec3 x = glm::inverse(A) * b;
 
-			float t = x.x;
-			float u = x.y;
-			float v = x.z;
+				float t = x.x;
+				float u = x.y;
+				float v = x.z;
 
-			if (t >= 0) {
+				if (t >= 0) {
 
-				if ((0 <= u) && (0 <= v) && (u + v) <= 1) {
+					if ((0 <= u) && (0 <= v) && (u + v) <= 1) {
 
-					if (t < closestIntersection.distance) {
-						closestIntersectionFound = true;
-						//Set values for the intersection
-						closestIntersection.position = start + dir * t;
-						closestIntersection.distance = t;
-						closestIntersection.triangleIndex = i;
+						if (t < closestIntersection.distance) {
+							closestIntersectionFound = true;
+							//Set values for the intersection
+							closestIntersection.position = start + dir * t;
+							closestIntersection.distance = t;
+							closestIntersection.triangleIndex = i;
+						}
 					}
 				}
 			}
-
 		}
 	}
 	return closestIntersectionFound;
@@ -283,39 +285,43 @@ bool Update()
 //Function that takes an intersection and returns the color of the triangle
 vec3 DirectLight(const Intersection& i) {
 
-	vec3 updatedColor;
+	vec3 updatedColor = vec3(0,0,0);
 
-	vec3 n = triangles[i.triangleIndex].normal;
-	vec3 r;
-	r.x = lightPos.x - i.position.x;
-	r.y = lightPos.y - i.position.y;
-	r.z = lightPos.z - i.position.z;
+	//n is a unit vector describing the normal pointing out from the surface
+	vec4 n = triangles[i.triangleIndex].normal;
+	
+	//r is a unit vector describing the direction from the surface point to the light source
+	vec4 r = lightPos - i.position;
 
 	//Normalise vectors n and r
-	NormaliseVec(n);
-	NormaliseVec(r);
+	n = NormaliseVec(n);
+	r = NormaliseVec(r);
+
+	/*Check if the intersection given receives direct illumination*/
+	//Calculate the distance between the intersection and the lightPos
+	double d = Find3Distance(lightPos, vec3(i.position));
+
+	//Calculate the closestIntersection of the intersection in the direction of the light
+	Intersection closestIntersectionItem;
+
+	if (ClosestIntersection(i.position+0.0001f*n, r, triangles, closestIntersectionItem, i.triangleIndex)) {		
+		if(closestIntersectionItem.distance>0.f && closestIntersectionItem.distance < d) {
+			return updatedColor;
+		}
+	}
 
 	double dotProduct = (n.x * r.x) + (n.y * r.y) + (n.z * r.z);
 
 	if (dotProduct > 0) {
 
-		//Find the distance between the lightPos and the intersection
-		double d = Find3Distance(lightPos, vec3(i.position));
-
 		//Calculate the number (0 < n < 1) with which the power P of the light (lightColor) will be multiplied with
 		double percentage = dotProduct / (4 * M_PI * d * d);
-		
+
 		//Calculate the new value of light for the intersection
 		updatedColor.x = lightColor.x * percentage;
 		updatedColor.y = lightColor.y * percentage;
 		updatedColor.z = lightColor.z * percentage;
 	}
-	else {
-		updatedColor.x = 0;
-		updatedColor.y = 0;
-		updatedColor.z = 0;
-	}
-
 	return updatedColor;
 }
 
@@ -329,10 +335,14 @@ double Find3Distance(vec3 vectorOne, vec3 vectorTwo) {
 	return root;
 }
 
-void NormaliseVec(vec3 vec) {
+vec4 NormaliseVec(vec4 vec) {
+	vec4 normalisedPoint;
 	double length = sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
 
-	vec.x = vec.x / length;
-	vec.y = vec.y / length;
-	vec.z = vec.z / length;
+	normalisedPoint.x = vec.x / length;
+	normalisedPoint.y = vec.y / length;
+	normalisedPoint.z = vec.z / length;
+	normalisedPoint.w = vec.w;
+
+	return normalisedPoint;
 }
