@@ -102,15 +102,25 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 		vec3 b = vec3(start - v0);
 
 		mat3 A(-vec3(dir), e1, e2);
-		if (glm::determinant(A) != 0) {
+		float aDet = glm::determinant(A);
 
-			vec3 x = glm::inverse(A) * b;
+		if (aDet != 0) {
 
-			float t = x.x;
-			float u = x.y;
-			float v = x.z;
+			//t found using Cramers rule
+			mat3 A1(b, A[1], A[2]);
+			float x1Det = glm::determinant(A1);
+			float t = x1Det / aDet;
 
 			if (t >= 0) {
+
+				mat3 A2(A[0], b, A[2]);
+				mat3 A3(A[0], A[1], b);
+
+				float x2Det = glm::determinant(A2);
+				float x3Det = glm::determinant(A3);
+
+				float u = x2Det / aDet;
+				float v = x3Det / aDet;
 
 				if ((0 <= u) && (0 <= v) && (u + v) <= 1) {
 
@@ -118,6 +128,7 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 						closestIntersectionFound = true;
 						//Set values for the intersection
 						closestIntersection.position = start + dir * t;
+						//std::cout << "t is: " << t << std::endl;
 						closestIntersection.distance = t;
 						closestIntersection.triangleIndex = i;
 					}
@@ -140,7 +151,7 @@ void Draw(screen* screen) {
 			//Compute the corresponding ray direction
 			vec4 rayDirection(x - SCREEN_WIDTH * 0.5, y - SCREEN_HEIGHT * 0.5, focalLength, 1);
 
-			rayDirection = rayDirection*cameraRotMatrix;
+			rayDirection = rayDirection * cameraRotMatrix;
 
 			//Call the function ClosestIntersection to get the closest intersection in that direction
 			Intersection closestIntersectionItem;
@@ -180,8 +191,8 @@ mat3 RotMatrixY(float angle){
 
 void Rotate(mat3 rotation){
 	mat3 cameraRotExtract(cameraRotMatrix[0][0], cameraRotMatrix[0][1], cameraRotMatrix[0][2],
-													 cameraRotMatrix[1][0], cameraRotMatrix[1][1], cameraRotMatrix[1][2],
-												 	 cameraRotMatrix[2][0], cameraRotMatrix[2][1], cameraRotMatrix[2][2]);
+												cameraRotMatrix[1][0], cameraRotMatrix[1][1], cameraRotMatrix[1][2],
+											 	cameraRotMatrix[2][0], cameraRotMatrix[2][1], cameraRotMatrix[2][2]);
 
 	cameraRotExtract = rotation * cameraRotExtract;
 
@@ -204,6 +215,8 @@ bool Update()
 	int t2 = SDL_GetTicks();
 	float dt = float(t2 - t);
 	t = t2;
+
+	std::cout << "Render time: " << dt << " ms." << std::endl;
 
 	float angle = 0.01;
 	float step = 0.2f;
@@ -288,7 +301,7 @@ vec3 DirectLight(const Intersection& i) {
 
 	//n is a unit vector describing the normal pointing out from the surface
 	vec4 n = triangles[i.triangleIndex].normal;
-	
+
 	//r is a unit vector describing the direction from the surface point to the light source
 	vec4 r = lightPos - i.position;
 
@@ -303,7 +316,7 @@ vec3 DirectLight(const Intersection& i) {
 	//Calculate the closestIntersection of the intersection in the direction of the light
 	Intersection closestIntersectionItem;
 
-	if (ClosestIntersection(i.position+0.0001f*n, r, triangles, closestIntersectionItem)) {		
+	if (ClosestIntersection(i.position+0.0001f*n, r, triangles, closestIntersectionItem)) {
 		if(closestIntersectionItem.distance>0.f && closestIntersectionItem.distance < d) {
 			return updatedColor;
 		}
