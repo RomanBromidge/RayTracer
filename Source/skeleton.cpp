@@ -33,6 +33,10 @@ vec3 lightColor = 14.f * vec3(1, 1, 1);
 
 vec3 indirectLight = 0.5f*vec3(1, 1, 1);
 
+//Sphere parameters
+vec4 sphereCenter(0,0,0,1);
+const float sphereRadius = 0.1;
+
 vector<Triangle> triangles;
 
 SDL_Event event;
@@ -47,6 +51,8 @@ bool ClosestIntersection(vec4 start,
 	vec4 dir,
 	const vector<Triangle>& triangles,
 	Intersection& closestIntersection);
+
+bool sphereClosestIntersection(vec4 origin, vec4 dir, Intersection& closestSphereIntersection);
 
 void Rotate(mat3 rotation);
 mat3 RotMatrixX(float angle);
@@ -107,14 +113,14 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 		if (aDet != 0) {
 
 			//t found using Cramers rule
-			mat3 A1(b, A[1], A[2]);
+			mat3 A1(b, e1, e2);
 			float x1Det = glm::determinant(A1);
 			float t = x1Det / aDet;
 
 			if (t >= 0) {
 
-				mat3 A2(A[0], b, A[2]);
-				mat3 A3(A[0], A[1], b);
+				mat3 A2(-vec3(dir), b, e2);
+				mat3 A3(-vec3(dir), e1, b);
 
 				float x2Det = glm::determinant(A2);
 				float x3Det = glm::determinant(A3);
@@ -139,6 +145,61 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 	return closestIntersectionFound;
 }
 
+//Function that takes a ray and finds if there is an intersection with the sphere
+bool sphereClosestIntersection(vec4 origin, vec4 dir, Intersection& closestSphereIntersection) {
+	
+	bool closestSphereIntersectionFound = false;
+
+	//Max size of float
+	closestSphereIntersection.distance = std::numeric_limits<float>::max();
+
+	//Find intersection points with sphere if any
+
+	//First calculate a, b, c for f(t) = at^2 + bt + c
+	vec3 dirVec3 = dir;
+	vec3 originVec3 = origin;
+
+	float a = glm::dot(dirVec3, dirVec3);
+	float b = 2 * glm::dot(originVec3, dirVec3);
+	float c = glm::dot(originVec3, originVec3) - (sphereRadius * sphereRadius);
+
+	float t;
+
+	//Calculate Delta to see how many intersection points we have
+
+	float Delta = (b*b) - (4 * a * c);
+
+	if (Delta < 0) {
+		return closestSphereIntersectionFound;
+	}
+	else if (Delta == 0) {
+		closestSphereIntersectionFound = true;
+
+		t = (-b) / (2 * a);
+		//Set values for the intersection
+		closestSphereIntersection.position = origin + dir * t;
+		closestSphereIntersection.distance = t;
+	}
+	else { //Delta > 0 and we have 2 values for t. We are going to keep the smallest one because that will be the closest intersection
+
+		float tOne = -(b + sqrt(Delta)) / (2 * a);
+
+		float tTwo = -(b - sqrt(Delta)) / (2 * a);
+
+		if (tOne < tTwo && tOne > 0) {
+			closestSphereIntersectionFound = true;
+			closestSphereIntersection.position = origin + dir * tOne;
+			closestSphereIntersection.distance = tOne;
+		}
+		else if (tTwo > 0){
+			closestSphereIntersectionFound = true;
+			closestSphereIntersection.position = origin + dir * tTwo;
+			closestSphereIntersection.distance = tTwo;
+		}
+	}
+	return closestSphereIntersectionFound;
+}
+
 /*Place your drawing here*/
 void Draw(screen* screen) {
 	//Clear buffer
@@ -153,15 +214,17 @@ void Draw(screen* screen) {
 
 			rayDirection = rayDirection * cameraRotMatrix;
 
+			rayDirection = NormaliseVec(rayDirection);
+
 			//Call the function ClosestIntersection to get the closest intersection in that direction
 			Intersection closestIntersectionItem;
-			if (ClosestIntersection(cameraPos, rayDirection, triangles, closestIntersectionItem)) {
-				vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
+			if (sphereClosestIntersection(cameraPos, rayDirection, closestIntersectionItem)) {
+				//vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
 				//The color of the pixel should be set to the color of that triangle
 				//PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color);
 				//The color of the pixel is set to the percentage of light that hits it
 				//PutPixelSDL(screen, x, y, DirectLight(closestIntersectionItem));
-				PutPixelSDL(screen, x, y, color);
+				PutPixelSDL(screen, x, y, vec3(1, 0, 0));
 
 			}
 			else {
@@ -216,7 +279,7 @@ bool Update()
 	float dt = float(t2 - t);
 	t = t2;
 
-	std::cout << "Render time: " << dt << " ms." << std::endl;
+	//std::cout << "Render time: " << dt << " ms." << std::endl;
 
 	float angle = 0.01;
 	float step = 0.2f;
