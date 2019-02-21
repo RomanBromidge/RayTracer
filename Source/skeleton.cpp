@@ -35,7 +35,7 @@ vec3 indirectLight = 0.5f*vec3(1, 1, 1);
 
 //Sphere parameters
 vec4 sphereCenter(0,0,0,1);
-const float sphereRadius = 0.1;
+const float sphereRadius = 0.2;
 
 vector<Triangle> triangles;
 
@@ -132,9 +132,16 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 
 					if (t < closestIntersection.distance) {
 						closestIntersectionFound = true;
+
+						//Check if there is a sphere in front of it
+						if (sphereClosestIntersection(start, dir, closestIntersection)) {
+							//Set values for the intersection
+							closestIntersection.triangleIndex = -1;
+							return closestIntersectionFound;
+						}
+
 						//Set values for the intersection
 						closestIntersection.position = start + dir * t;
-						//std::cout << "t is: " << t << std::endl;
 						closestIntersection.distance = t;
 						closestIntersection.triangleIndex = i;
 					}
@@ -218,14 +225,18 @@ void Draw(screen* screen) {
 
 			//Call the function ClosestIntersection to get the closest intersection in that direction
 			Intersection closestIntersectionItem;
-			if (sphereClosestIntersection(cameraPos, rayDirection, closestIntersectionItem)) {
-				//vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
-				//The color of the pixel should be set to the color of that triangle
-				//PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color);
-				//The color of the pixel is set to the percentage of light that hits it
-				//PutPixelSDL(screen, x, y, DirectLight(closestIntersectionItem));
-				PutPixelSDL(screen, x, y, vec3(1, 0, 0));
-
+			if (ClosestIntersection(cameraPos, rayDirection, triangles, closestIntersectionItem)) {
+				if (closestIntersectionItem.triangleIndex == -1) {
+					PutPixelSDL(screen, x, y, vec3(1,1,1));
+				}
+				else {
+					vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
+					//The color of the pixel should be set to the color of that triangle
+					//PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color);
+					//The color of the pixel is set to the percentage of light that hits it
+					//PutPixelSDL(screen, x, y, DirectLight(closestIntersectionItem));
+					PutPixelSDL(screen, x, y, color);
+				}
 			}
 			else {
 				//It should be black
