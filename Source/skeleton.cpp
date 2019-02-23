@@ -60,6 +60,8 @@ mat3 RotMatrixY(float angle);
 
 vec3 DirectLight(const Intersection& i);
 
+vec3 Reflection(const Intersection& i);
+
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo);
 
 vec4 NormaliseVec(vec4 vec);
@@ -227,7 +229,8 @@ void Draw(screen* screen) {
 			Intersection closestIntersectionItem;
 			if (ClosestIntersection(cameraPos, rayDirection, triangles, closestIntersectionItem)) {
 				if (closestIntersectionItem.triangleIndex == -1) {
-					PutPixelSDL(screen, x, y, vec3(1,1,1));
+					vec3 sphereColor = Reflection(closestIntersectionItem);
+					PutPixelSDL(screen, x, y, sphereColor);
 				}
 				else {
 					vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
@@ -384,6 +387,7 @@ vec3 DirectLight(const Intersection& i) {
 	r = NormaliseVec(r);
 
 	/*Check if the intersection given receives direct illumination*/
+
 	//Calculate the distance between the intersection and the lightPos
 	double d = Find3Distance(lightPos, vec3(i.position));
 
@@ -409,6 +413,42 @@ vec3 DirectLight(const Intersection& i) {
 		updatedColor.z = lightColor.z * percentage;
 	}
 	return updatedColor;
+}
+
+//Function that takes an intersection and returns the color of the triangle
+vec3 Reflection(const Intersection& intersection) {
+
+	vec3 intersectionColor(1, 1, 1);
+
+	//Find vector from camera to intersection
+	vec4 i = cameraPos - intersection.position;
+	//Find norman of Intersection
+	vec4 n = intersection.position - sphereCenter;
+
+	//Normalise vectors ir and n ???maybe after magnitude???
+	i = NormaliseVec(i);
+	n = NormaliseVec(n);
+
+	////Find angle of incidence
+	float dotProduct = (i.x * n.x)+(i.y * n.y)+(i.z * n.z);
+
+	float w = (float)(2 * dotProduct);
+
+	//Find reflective ray
+	vec4 r = i - (w * n);
+
+	r = NormaliseVec(r);
+
+	//Calculate the closestIntersection in the direction of reflection
+	Intersection closestIntersectionItem;
+
+	if (ClosestIntersection(intersection.position - 0.001f*r, -r, triangles, closestIntersectionItem)) {
+		if (closestIntersectionItem.distance>0.f) {
+			intersectionColor = triangles[closestIntersectionItem.triangleIndex].color;
+			return intersectionColor;
+		}
+	}
+	return intersectionColor;
 }
 
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo) {
