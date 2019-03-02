@@ -69,7 +69,7 @@ vec3 CombineReflectionRefraction(const Intersection& intersection);
 vec3 ReflectionColor(const Intersection& intersection, vec4 i, vec4 n, double dotProduct);
 vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double dotProduct);
 vec4 RefractionDirection(const vec4 i, const vec4 n, double dotProduct);
-double FresnelR(double costheta1, double costheta2);
+void FresnelR(double costheta1, double costheta2, double fresnelOrthogonal, double fresnelParallel, double fresnel);
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo);
 vec4 NormaliseVec(vec4 vec);
 double angle(vec4 u, vec4 v);
@@ -450,12 +450,19 @@ vec3 CombineReflectionRefraction(const Intersection& intersection) {
 	double costheta1 = angle(i, n);
 	double costheta2 = angle(n, -t);
 
-	float reflectionPercentage = (float)FresnelR(costheta1, costheta2);
+	//Madness because Fresnel wasn't working
+	double fresnelOrthogonal = costheta1;
+	double fresnelParallel = costheta2;
+	double fresnel = costheta2;
+	
+	//Call FresnelR to calculate the percentage that gets reflected
+	FresnelR(costheta1, costheta2, fresnelOrthogonal, fresnelParallel, fresnel);
 
 	vec3 reflectionColor = ReflectionColor(intersection, i, n, dotProduct);
 	vec3 refractionColor = RefractionColor(intersection, i, n, dotProduct);
 
-	return (reflectionPercentage*reflectionColor) + ((1 - reflectionPercentage)*refractionColor);
+	//Return the combined color of reflection and refraction
+	return ((float)fresnel*reflectionColor) + ((1 - (float)fresnel)*refractionColor);
 }
 
 //Function that takes an intersection and returns the color of the triangle
@@ -498,7 +505,7 @@ vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 			return refractionColor;
 		}
 	}
-	// If no intersection is found return black color !!!
+	// If no intersection is found return black color
 	return refractionColor;
 }
 
@@ -514,16 +521,16 @@ vec4 RefractionDirection(const vec4 i, const vec4 n, double dotProduct) {
 	return t;
 }
 
-double FresnelR(double costheta1, double costheta2) {
-	double a = (etat * costheta1);
-	double b = (etai * costheta2);
+void FresnelR(double costheta1, double costheta2, double fresnelOrthogonal, double fresnelParallel, double fresnel) {
+	costheta1 = etat * costheta1;
+	costheta2 = etai * costheta2;
 
-	double fresnelParallel = ((a - b) / (a + b)) * ((a - b) / (a + b));
-	double fresnelOrthogonal = ((b - a) / (b + a)) * ((b - a) / (b + a));
+	fresnelParallel = ((costheta1 - costheta2) / (costheta1 + costheta2)) * ((costheta1 - costheta2) / (costheta1 + costheta2));
+	fresnelOrthogonal = ((costheta2 - costheta1) / (costheta2 + costheta1)) * ((costheta2 - costheta1) / (costheta2 + costheta1));
 
-	double fresnel = 0.5 * fresnelOrthogonal * fresnelParallel;
-
-	return fresnel;
+	fresnel = 0.5 * fresnelParallel * fresnelOrthogonal;
+	
+	return;
 }
 
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo) {
