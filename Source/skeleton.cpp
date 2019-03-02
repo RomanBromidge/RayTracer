@@ -34,8 +34,15 @@ vec3 lightColor = 14.f * vec3(1, 1, 1);
 vec3 indirectLight = 0.5f*vec3(1, 1, 1);
 
 //Sphere parameters
-vec4 sphereCenter(0,0,0,1);
+vec4 sphereCenter(0, 0, 0, 1);
 const float sphereRadius = 0.2;
+
+//Indeces of refraction
+float air = 1;
+float glass = 1.5;
+float etai = air; 
+float etat = glass;
+float eta = etai / etat;
 
 vector<Triangle> triangles;
 
@@ -57,14 +64,15 @@ bool sphereClosestIntersection(vec4 origin, vec4 dir, Intersection& closestSpher
 void Rotate(mat3 rotation);
 mat3 RotMatrixX(float angle);
 mat3 RotMatrixY(float angle);
-
 vec3 DirectLight(const Intersection& i);
-
-vec3 Reflection(const Intersection& i);
-
+vec3 CombineReflectionRefraction(const Intersection& intersection);
+vec3 ReflectionColor(const Intersection& intersection, vec4 i, vec4 n, double dotProduct);
+vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double dotProduct);
+vec4 RefractionDirection(const vec4 i, const vec4 n, double dotProduct);
+double FresnelR(double costheta1, double costheta2);
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo);
-
 vec4 NormaliseVec(vec4 vec);
+double angle(vec4 u, vec4 v);
 
 int main(int argc, char* argv[])
 {
@@ -73,11 +81,11 @@ int main(int argc, char* argv[])
 	LoadTestModel(triangles);
 
 	//Fill the cameraRotMatrix with the identity matrix
-	vec4 x0(1,0,0,0);
-	vec4 x1(0,1,0,0);
-	vec4 x2(0,0,1,0);
-	vec4 x3(0,0,0,1);
-	cameraRotMatrix = mat4(x0,x1,x2,x3);
+	vec4 x0(1, 0, 0, 0);
+	vec4 x1(0, 1, 0, 0);
+	vec4 x2(0, 0, 1, 0);
+	vec4 x3(0, 0, 0, 1);
+	cameraRotMatrix = mat4(x0, x1, x2, x3);
 
 	while (Update())
 	{
@@ -156,7 +164,7 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 
 //Function that takes a ray and finds if there is an intersection with the sphere
 bool sphereClosestIntersection(vec4 origin, vec4 dir, Intersection& closestSphereIntersection) {
-	
+
 	bool closestSphereIntersectionFound = false;
 
 	//Max size of float
@@ -200,7 +208,7 @@ bool sphereClosestIntersection(vec4 origin, vec4 dir, Intersection& closestSpher
 			closestSphereIntersection.position = origin + dir * tOne;
 			closestSphereIntersection.distance = tOne;
 		}
-		else if (tTwo > 0){
+		else if (tTwo > 0) {
 			closestSphereIntersectionFound = true;
 			closestSphereIntersection.position = origin + dir * tTwo;
 			closestSphereIntersection.distance = tTwo;
@@ -229,15 +237,11 @@ void Draw(screen* screen) {
 			Intersection closestIntersectionItem;
 			if (ClosestIntersection(cameraPos, rayDirection, triangles, closestIntersectionItem)) {
 				if (closestIntersectionItem.triangleIndex == -1) {
-					vec3 sphereColor = Reflection(closestIntersectionItem);
+					vec3 sphereColor = CombineReflectionRefraction(closestIntersectionItem);
 					PutPixelSDL(screen, x, y, sphereColor);
 				}
 				else {
 					vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
-					//The color of the pixel should be set to the color of that triangle
-					//PutPixelSDL(screen, x, y, triangles[closestIntersectionItem.triangleIndex].color);
-					//The color of the pixel is set to the percentage of light that hits it
-					//PutPixelSDL(screen, x, y, DirectLight(closestIntersectionItem));
 					PutPixelSDL(screen, x, y, color);
 				}
 			}
@@ -250,26 +254,26 @@ void Draw(screen* screen) {
 	}
 }
 
-mat3 RotMatrixX(float angle){
+mat3 RotMatrixX(float angle) {
 	vec3 x0(1, 0, 0);
 	vec3 x1(0, cosf(angle), sinf(angle));
 	vec3 x2(0, -sinf(angle), cosf(angle));
 
-	return mat3(x0,x1,x2);
+	return mat3(x0, x1, x2);
 }
 
-mat3 RotMatrixY(float angle){
+mat3 RotMatrixY(float angle) {
 	vec3 y1(cosf(angle), 0, -sinf(angle));
 	vec3 y2(0, 1, 0);
 	vec3 y3(sinf(angle), 0, cosf(angle));
 
-	return mat3(y1,y2,y3);
+	return mat3(y1, y2, y3);
 }
 
-void Rotate(mat3 rotation){
+void Rotate(mat3 rotation) {
 	mat3 cameraRotExtract(cameraRotMatrix[0][0], cameraRotMatrix[0][1], cameraRotMatrix[0][2],
-												cameraRotMatrix[1][0], cameraRotMatrix[1][1], cameraRotMatrix[1][2],
-											 	cameraRotMatrix[2][0], cameraRotMatrix[2][1], cameraRotMatrix[2][2]);
+		cameraRotMatrix[1][0], cameraRotMatrix[1][1], cameraRotMatrix[1][2],
+		cameraRotMatrix[2][0], cameraRotMatrix[2][1], cameraRotMatrix[2][2]);
 
 	cameraRotExtract = rotation * cameraRotExtract;
 
@@ -336,7 +340,7 @@ bool Update()
 					Rotate(RotMatrixY(-angle));
 					break;
 
-				//Camera Movement
+					//Camera Movement
 				case SDLK_w:
 					/*Move light forward*/
 					lightPos.z += step;
@@ -374,7 +378,7 @@ bool Update()
 //Function that takes an intersection and returns the color of the triangle
 vec3 DirectLight(const Intersection& i) {
 
-	vec3 updatedColor = vec3(0,0,0);
+	vec3 updatedColor = vec3(0, 0, 0);
 
 	//n is a unit vector describing the normal pointing out from the surface
 	vec4 n = triangles[i.triangleIndex].normal;
@@ -394,8 +398,8 @@ vec3 DirectLight(const Intersection& i) {
 	//Calculate the closestIntersection of the intersection in the direction of the light
 	Intersection closestIntersectionItem;
 
-	if (ClosestIntersection(i.position+0.0001f*n, r, triangles, closestIntersectionItem)) {
-		if(closestIntersectionItem.distance>0.f && closestIntersectionItem.distance < d) {
+	if (ClosestIntersection(i.position + 0.0001f*n, r, triangles, closestIntersectionItem)) {
+		if (closestIntersectionItem.distance>0.f && closestIntersectionItem.distance < d) {
 			return updatedColor;
 		}
 	}
@@ -416,9 +420,7 @@ vec3 DirectLight(const Intersection& i) {
 }
 
 //Function that takes an intersection and returns the color of the triangle
-vec3 Reflection(const Intersection& intersection) {
-
-	vec3 intersectionColor(1, 1, 1);
+vec3 CombineReflectionRefraction(const Intersection& intersection) {
 
 	//Find vector from camera to intersection
 	vec4 i = cameraPos - intersection.position;
@@ -430,7 +432,36 @@ vec3 Reflection(const Intersection& intersection) {
 	n = NormaliseVec(n);
 
 	////Find angle of incidence
-	float dotProduct = (i.x * n.x)+(i.y * n.y)+(i.z * n.z);
+	double dotProduct = (i.x * n.x) + (i.y * n.y) + (i.z * n.z);
+
+	//Figure out what is etai and what is etat
+	if (dotProduct > 0) { //We go from air inside glass
+		etai = air;
+		etat = glass;
+	}
+	else { //We go from glass to air
+		etai = glass;
+		etat = air;
+	}
+
+	vec4 t = RefractionDirection(i, n, dotProduct);
+
+	//Calculate angles for Fresnel
+	double costheta1 = angle(i, n);
+	double costheta2 = angle(n, -t);
+
+	float reflectionPercentage = (float)FresnelR(costheta1, costheta2);
+
+	vec3 reflectionColor = ReflectionColor(intersection, i, n, dotProduct);
+	vec3 refractionColor = RefractionColor(intersection, i, n, dotProduct);
+
+	return (reflectionPercentage*reflectionColor) + ((1 - reflectionPercentage)*refractionColor);
+}
+
+//Function that takes an intersection and returns the color of the triangle
+vec3 ReflectionColor(const Intersection& intersection, vec4 i, vec4 n, double dotProduct) {
+
+	vec3 intersectionColor(1, 1, 1);
 
 	float w = (float)(2 * dotProduct);
 
@@ -449,6 +480,50 @@ vec3 Reflection(const Intersection& intersection) {
 		}
 	}
 	return intersectionColor;
+}
+
+vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double dotProduct) {
+	vec3 refractionColor(0, 0, 0);
+
+	vec4 t = RefractionDirection(i, n, dotProduct);
+
+	t = NormaliseVec(t);
+
+	//Calculate the closestIntersection in the direction of refraction
+	Intersection closestIntersectionItem;
+
+	if (ClosestIntersection(intersection.position - 0.001f*t, t, triangles, closestIntersectionItem)) {
+		if (closestIntersectionItem.distance>0.f) {
+			refractionColor = triangles[closestIntersectionItem.triangleIndex].color;
+			return refractionColor;
+		}
+	}
+	// If no intersection is found return black color !!!
+	return refractionColor;
+}
+
+vec4 RefractionDirection(const vec4 i, const vec4 n, double dotProduct) {
+
+	vec4 nRefr = n;
+
+	float c2 = sqrt(1 - (eta*eta)*(1 - (dotProduct*dotProduct)));
+
+	//Calculate transmission ray
+	vec4 t = (eta*i) + ((eta*(float)dotProduct) - c2)*n; // Not sure about this float casting
+
+	return t;
+}
+
+double FresnelR(double costheta1, double costheta2) {
+	double a = (etat * costheta1);
+	double b = (etai * costheta2);
+
+	double fresnelParallel = ((a - b) / (a + b)) * ((a - b) / (a + b));
+	double fresnelOrthogonal = ((b - a) / (b + a)) * ((b - a) / (b + a));
+
+	double fresnel = 0.5 * fresnelOrthogonal * fresnelParallel;
+
+	return fresnel;
 }
 
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo) {
@@ -471,4 +546,17 @@ vec4 NormaliseVec(vec4 vec) {
 	normalisedPoint.w = vec.w;
 
 	return normalisedPoint;
+}
+
+double angle(vec4 u, vec4 v) {
+
+	//Calculate dot product
+	double dotProduct = (u.x * v.x) + (u.y * v.y) + (u.z * v.z);
+	//Calculate magnitudes
+	double uMagnitude = sqrt((u.x*u.x) + (u.y*u.y) + (u.z*u.z));
+	double vMagnitude = sqrt((v.x*v.x) + (v.y*v.y) + (v.z*v.z));
+	//Calculate angle
+	double cosangle = dotProduct / (uMagnitude * vMagnitude);
+
+	return cosangle;
 }
