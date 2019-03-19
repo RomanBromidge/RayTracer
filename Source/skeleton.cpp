@@ -340,7 +340,7 @@ bool Update()
 					Rotate(RotMatrixY(-angle));
 					break;
 
-					//Camera Movement
+					//Light Movement
 				case SDLK_w:
 					/*Move light forward*/
 					lightPos.z += step;
@@ -500,7 +500,34 @@ vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 	Intersection closestIntersectionItem;
 
 	if (ClosestIntersection(intersection.position - 0.001f*t, t, triangles, closestIntersectionItem)) {
-		if (closestIntersectionItem.distance>0.f) {
+		//If the closest intersection is a sphere, that means we are inside the sphere
+		//Make it 100% refractive and exit the sphere to get a color back
+		//Aka make another refraction round
+		if (closestIntersectionItem.triangleIndex == -1) {
+			//Find the point in the 3D space where the intersection with the other end of the sphere happened
+			if (sphereClosestIntersection(intersection.position, t, closestIntersectionItem)) {
+
+				//Compute the normal
+				vec4 normalTwo = closestIntersectionItem.position - sphereCenter;
+				normalTwo = NormaliseVec(normalTwo);
+
+				double dotProductTwo = (t.x * normalTwo.x) + (t.y * normalTwo.y) + (t.z * normalTwo.z);
+
+				//Find the refraction direction of the exiting ray
+				vec4 secondT = RefractionDirection(t, normalTwo, dotProductTwo);
+
+				//Send a ray towards this direction and return the color
+				Intersection secondClosestIntersectionItem;
+
+				if (ClosestIntersection(closestIntersectionItem.position - 0.001f*secondT, secondT, triangles, secondClosestIntersectionItem)) {
+					if (secondClosestIntersectionItem.distance>0.f) {
+						refractionColor = triangles[secondClosestIntersectionItem.triangleIndex].color;
+						return refractionColor;
+					}
+				}
+			}
+		}
+		else if (closestIntersectionItem.distance>0.f) {
 			refractionColor = triangles[closestIntersectionItem.triangleIndex].color;
 			return refractionColor;
 		}
