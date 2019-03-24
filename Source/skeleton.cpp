@@ -18,8 +18,10 @@ struct Intersection {
 	int triangleIndex;
 };
 
-#define SCREEN_WIDTH 320
-#define SCREEN_HEIGHT 256
+//#define SCREEN_WIDTH 320
+//#define SCREEN_HEIGHT 256
+#define SCREEN_WIDTH 800
+#define SCREEN_HEIGHT 500
 #define FULLSCREEN_MODE false
 
 //Variables to store the camera parameters
@@ -142,21 +144,25 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 
 					if (t < closestIntersection.distance) {
 						closestIntersectionFound = true;
-
-						//Check if there is a sphere in front of it
-						if (sphereClosestIntersection(start, dir, closestIntersection)) {
-							//Set values for the intersection
-							closestIntersection.triangleIndex = -1;
-							return closestIntersectionFound;
-						}
-
 						//Set values for the intersection
 						closestIntersection.position = start + dir * t;
 						closestIntersection.distance = t;
 						closestIntersection.triangleIndex = i;
+						
+
 					}
 				}
 			}
+		}
+	}
+	Intersection intersectionSphere;
+	//Check if there is a sphere in front of it
+	if (sphereClosestIntersection(start, dir, intersectionSphere)) {
+		//Set values for the intersection
+		if (intersectionSphere.distance < closestIntersection.distance) {
+			closestIntersectionFound = true;
+			closestIntersection = intersectionSphere;
+			closestIntersection.triangleIndex = -1;
 		}
 	}
 	return closestIntersectionFound;
@@ -175,10 +181,15 @@ bool sphereClosestIntersection(vec4 origin, vec4 dir, Intersection& closestSpher
 	//First calculate a, b, c for f(t) = at^2 + bt + c
 	vec3 dirVec3 = dir;
 	vec3 originVec3 = origin;
+	vec3 center = sphereCenter;
 
-	float a = glm::dot(dirVec3, dirVec3);
-	float b = 2 * glm::dot(originVec3, dirVec3);
-	float c = glm::dot(originVec3, originVec3) - (sphereRadius * sphereRadius);
+	//float a = glm::dot(dirVec3, dirVec3);
+	//float b = 2 * glm::dot(originVec3, dirVec3);
+	//float c = glm::dot(originVec3, originVec3) - (sphereRadius * sphereRadius);
+	float a = 1.f;
+	float b = 2 * glm::dot(originVec3 - center, dirVec3);
+	float dist = (originVec3 - center).length();
+	float c = dist*dist - sphereRadius * sphereRadius;
 
 	float t;
 
@@ -365,6 +376,22 @@ bool Update()
 					/*Move light right*/
 					lightPos.x += step;
 					break;
+				case SDLK_i:
+					/*Move light right*/
+					sphereCenter.z += step;
+					break;
+				case SDLK_k:
+					/*Move light right*/
+					sphereCenter.z -= step;
+					break;
+				case SDLK_l:
+					/*Move light right*/
+					cameraPos.x += step;
+					break;
+				case SDLK_j:
+					/*Move light right*/
+					cameraPos.x -= step;
+					break;
 
 				case SDLK_ESCAPE:
 					/* Move camera quit */
@@ -463,6 +490,8 @@ vec3 CombineReflectionRefraction(const Intersection& intersection) {
 
 	//Return the combined color of reflection and refraction
 	return ((float)fresnel*reflectionColor) + ((1 - (float)fresnel)*refractionColor);
+	//return reflectionColor;
+	//return refractionColor;
 }
 
 //Function that takes an intersection and returns the color of the triangle
@@ -499,32 +528,30 @@ vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 	//Calculate the closestIntersection in the direction of refraction
 	Intersection closestIntersectionItem;
 
-	if (ClosestIntersection(intersection.position - 0.001f*t, t, triangles, closestIntersectionItem)) {
+	if (ClosestIntersection(intersection.position - 0.001f*t, -t, triangles, closestIntersectionItem)) {
 		//If the closest intersection is a sphere, that means we are inside the sphere
 		//Make it 100% refractive and exit the sphere to get a color back
 		//Aka make another refraction round
 		if (closestIntersectionItem.triangleIndex == -1) {
 			//Find the point in the 3D space where the intersection with the other end of the sphere happened
-			if (sphereClosestIntersection(intersection.position, t, closestIntersectionItem)) {
+			//Compute the normal
+			vec4 normalTwo = closestIntersectionItem.position - sphereCenter;
+			normalTwo = NormaliseVec(normalTwo);
 
-				//Compute the normal
-				vec4 normalTwo = closestIntersectionItem.position - sphereCenter;
-				normalTwo = NormaliseVec(normalTwo);
+			double dotProductTwo = (t.x * normalTwo.x) + (t.y * normalTwo.y) + (t.z * normalTwo.z);
 
-				double dotProductTwo = (t.x * normalTwo.x) + (t.y * normalTwo.y) + (t.z * normalTwo.z);
+			//Find the refraction direction of the exiting ray
+			vec4 secondT = RefractionDirection(-t, normalTwo, dotProductTwo);
 
-				//Find the refraction direction of the exiting ray
-				vec4 secondT = RefractionDirection(t, normalTwo, dotProductTwo);
+			//Send a ray towards this direction and return the color
+			Intersection secondClosestIntersectionItem;
 
-				//Send a ray towards this direction and return the color
-				Intersection secondClosestIntersectionItem;
-
-				if (ClosestIntersection(closestIntersectionItem.position - 0.001f*secondT, secondT, triangles, secondClosestIntersectionItem)) {
-					if (secondClosestIntersectionItem.distance>0.f) {
-						refractionColor = triangles[secondClosestIntersectionItem.triangleIndex].color;
-						return refractionColor;
+			if (ClosestIntersection(closestIntersectionItem.position + 0.01f*secondT, secondT, triangles, secondClosestIntersectionItem)) {
+					if(closestIntersectionItem.triangleIndex == -1) {
+						return vec3(0, 0, 0);
 					}
-				}
+					refractionColor = triangles[secondClosestIntersectionItem.triangleIndex].color;
+					return refractionColor;
 			}
 		}
 		else if (closestIntersectionItem.distance>0.f) {
@@ -532,8 +559,8 @@ vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 			return refractionColor;
 		}
 	}
-	// If no intersection is found return black color
-	return refractionColor;
+	// If no intersection is found
+	return vec3(1, 1 , 1);//refractionColor;
 }
 
 vec4 RefractionDirection(const vec4 i, const vec4 n, double dotProduct) {
