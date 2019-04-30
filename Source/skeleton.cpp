@@ -36,7 +36,7 @@ vec3 lightColor = 14.f * vec3(1, 1, 1);
 vec3 indirectLight = 0.5f*vec3(1, 1, 1);
 
 //Sphere parameters
-vec4 sphereCenter(0, 0, 0, 1);
+vec4 sphereCenter(0, 0, 0.02, 1);
 const float sphereRadius = 0.2;
 
 //Indeces of refraction
@@ -78,6 +78,7 @@ void FresnelR(double costheta1, double costheta2, double fresnelOrthogonal, doub
 double Find3Distance(vec3 vectorOne, vec3 vectorTwo);
 vec4 NormaliseVec(vec4 vec);
 double angle(vec4 u, vec4 v);
+vec3 RayTracerColor(float x, float y);
 
 int main(int argc, char* argv[])
 {
@@ -238,32 +239,46 @@ void Draw(screen* screen) {
 	//Iterate through every pixel in the image
 	for (int y = 0; y < SCREEN_HEIGHT; y++) {
 		for (int x = 0; x < SCREEN_WIDTH; x++) {
+			vec3 color(0);
+			int count = 2;
 
-			//Compute the corresponding ray direction
-			vec4 rayDirection(x - SCREEN_WIDTH * 0.5, y - SCREEN_HEIGHT * 0.5, focalLength, 1);
-
-			rayDirection = rayDirection * cameraRotMatrix;
-
-			rayDirection = NormaliseVec(rayDirection);
-
-			//Call the function ClosestIntersection to get the closest intersection in that direction
-			Intersection closestIntersectionItem;
-			if (ClosestIntersection(cameraPos, rayDirection, triangles, closestIntersectionItem)) {
-				if (closestIntersectionItem.triangleIndex == -1) {
-					vec3 sphereColor = CombineReflectionRefraction(closestIntersectionItem);
-					PutPixelSDL(screen, x, y, sphereColor);
-				}
-				else {
-					vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
-					PutPixelSDL(screen, x, y, color);
+			float step = 1/(float)(count*2+1);
+			for (int i = -count; i <= count; i ++) {
+				for (int j = -count; j <= count; j++) {
+					color += RayTracerColor(x + i*step, y + j*step);
 				}
 			}
-			else {
-				//It should be black
-				vec3 colour(0.0, 0.0, 0.0);
-				PutPixelSDL(screen, x, y, colour);
-			}
+			color = color / (float)pow((count*2+1),2);
+			//vec3 color = RayTracerColor(x, y);
+			PutPixelSDL(screen, x, y, color);
 		}
+	}
+}
+
+vec3 RayTracerColor(float x, float y) {
+	//Compute the corresponding ray direction
+	vec4 rayDirection(x - SCREEN_WIDTH * 0.5, y - SCREEN_HEIGHT * 0.5, focalLength, 1);
+
+	rayDirection = rayDirection * cameraRotMatrix;
+
+	rayDirection = NormaliseVec(rayDirection);
+
+	//Call the function ClosestIntersection to get the closest intersection in that direction
+	Intersection closestIntersectionItem;
+	if (ClosestIntersection(cameraPos, rayDirection, triangles, closestIntersectionItem)) {
+		if (closestIntersectionItem.triangleIndex == -1) {
+			vec3 sphereColor = CombineReflectionRefraction(closestIntersectionItem);
+			return sphereColor;
+		}
+		else {
+			vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
+			return color;
+		}
+	}
+	else {
+		//It should be black
+		vec3 color(0.0, 0.0, 0.0);
+		return color;
 	}
 }
 
@@ -378,21 +393,17 @@ bool Update()
 					lightPos.x += step;
 					break;
 				case SDLK_i:
-					/*Move light right*/
-					sphereCenter.z += step;
+					sphereCenter.z += step/10;
 					break;
 				case SDLK_k:
-					/*Move light right*/
-					sphereCenter.z -= step;
+					sphereCenter.z -= step/10;
 					break;
-				case SDLK_l:
-					/*Move light right*/
+				/*case SDLK_l:
 					cameraPos.x += step;
 					break;
 				case SDLK_j:
-					/*Move light right*/
 					cameraPos.x -= step;
-					break;
+					break;*/
 
 				case SDLK_ESCAPE:
 					/* Move camera quit */
