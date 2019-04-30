@@ -48,6 +48,9 @@ float eta = etai / etat;
 
 vector<Triangle> triangles;
 
+//Count of recursion
+int recursionCount = 0;
+
 SDL_Event event;
 
 /* ----------------------------------------------------------------------------*/
@@ -228,7 +231,6 @@ bool sphereClosestIntersection(vec4 origin, vec4 dir, Intersection& closestSpher
 	return closestSphereIntersectionFound;
 }
 
-/*Place your drawing here*/
 void Draw(screen* screen) {
 	//Clear buffer
 	memset(screen->buffer, 0, screen->height*screen->width * sizeof(uint32_t));
@@ -299,7 +301,6 @@ void Rotate(mat3 rotation) {
 	cameraRotMatrix[2][2] = cameraRotExtract[2][2];
 }
 
-/*Place updates of parameters here*/
 bool Update()
 {
 	static int t = SDL_GetTicks();
@@ -402,7 +403,6 @@ bool Update()
 	return true;
 }
 
-//Function that takes an intersection and returns the color of the triangle
 vec3 DirectLight(const Intersection& i) {
 
 	vec3 updatedColor = vec3(0, 0, 0);
@@ -446,7 +446,6 @@ vec3 DirectLight(const Intersection& i) {
 	return updatedColor;
 }
 
-//Function that takes an intersection and returns the color of the triangle
 vec3 CombineReflectionRefraction(const Intersection& intersection) {
 
 	//Find vector from camera to intersection
@@ -494,7 +493,6 @@ vec3 CombineReflectionRefraction(const Intersection& intersection) {
 	//return refractionColor;
 }
 
-//Function that takes an intersection and returns the color of the triangle
 vec3 ReflectionColor(const Intersection& intersection, vec4 i, vec4 n, double dotProduct) {
 
 	vec3 intersectionColor(1, 1, 1);
@@ -509,7 +507,19 @@ vec3 ReflectionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 	//Calculate the closestIntersection in the direction of reflection
 	Intersection closestIntersectionItem;
 
-	if (ClosestIntersection(intersection.position - 0.001f*r, -r, triangles, closestIntersectionItem)) {
+	//Check if there is a SphereClosestIntersection with the reflection Ray
+	if (sphereClosestIntersection(intersection.position - 0.001f*r, -r, closestIntersectionItem)) {
+		if (recursionCount < 5) {
+			//If there is the closest intersection is with the shpere then we are inside the sphere are we want to have RECURSION
+			recursionCount++;
+			CombineReflectionRefraction(closestIntersectionItem);
+		}
+		else {
+			//Zero contribution to the color
+			return vec3(0, 0, 0);
+		}
+	}
+	else if (ClosestIntersection(intersection.position - 0.001f*r, -r, triangles, closestIntersectionItem)) {
 		if (closestIntersectionItem.distance>0.f) {
 			intersectionColor = triangles[closestIntersectionItem.triangleIndex].color;
 			return intersectionColor;
@@ -522,17 +532,25 @@ vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 	vec3 refractionColor(0, 0, 0);
 
 	vec4 t = RefractionDirection(i, n, dotProduct);
-
 	t = NormaliseVec(t);
 
 	//Calculate the closestIntersection in the direction of refraction
 	Intersection closestIntersectionItem;
 
+	//If an intersection exists
 	if (ClosestIntersection(intersection.position - 0.001f*t, -t, triangles, closestIntersectionItem)) {
-		//If the closest intersection is a sphere, that means we are inside the sphere
-		//Make it 100% refractive and exit the sphere to get a color back
-		//Aka make another refraction round
+
+		// --------------------------- 2 OPTIONS --------------------------------
+
+		// --- 1: The ray just entered the sphere and we want to make a recursion, in which case the closest intersection is a sphere
 		if (closestIntersectionItem.triangleIndex == -1) {
+			CombineReflectionRefraction(closestIntersectionItem);
+		}
+
+		// --- 2: The rounds of recursion are complete and we want to exit the sphere
+		else if (recursionCount > 5) {
+			//Make it 100% refractive and exit the sphere to get a color back (a.k.a. just make another refraction round)
+
 			//Find the point in the 3D space where the intersection with the other end of the sphere happened
 			//Compute the normal
 			vec4 normalTwo = closestIntersectionItem.position - sphereCenter;
@@ -547,19 +565,20 @@ vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 			Intersection secondClosestIntersectionItem;
 
 			if (ClosestIntersection(closestIntersectionItem.position + 0.01f*secondT, secondT, triangles, secondClosestIntersectionItem)) {
-					if(closestIntersectionItem.triangleIndex == -1) {
-						return vec3(0, 0, 0);
-					}
-					refractionColor = triangles[secondClosestIntersectionItem.triangleIndex].color;
-					return refractionColor;
+				if (closestIntersectionItem.triangleIndex == -1) {
+					return vec3(0, 0, 0);
+				}
+				refractionColor = triangles[secondClosestIntersectionItem.triangleIndex].color;
+				return refractionColor;
 			}
 		}
+		//If the closest intersection is a triangle
 		else if (closestIntersectionItem.distance>0.f) {
 			refractionColor = triangles[closestIntersectionItem.triangleIndex].color;
 			return refractionColor;
 		}
 	}
-	// If no intersection is found
+	//If no intersection is found
 	return vec3(1, 1 , 1);//refractionColor;
 }
 
