@@ -270,6 +270,12 @@ vec3 RayTracerColor(float x, float y) {
 			vec3 sphereColor = CombineReflectionRefraction(closestIntersectionItem);
 			return sphereColor;
 		}
+		/*else if (closestIntersectionItem.triangleIndex == 0 || closestIntersectionItem.triangleIndex == 1) {
+			vec4 n = triangles[closestIntersectionItem.triangleIndex].normal;
+			double dotProduct = (rayDirection.x * n.x) + (rayDirection.y * n.y) + (rayDirection.z * n.z);
+			vec3 color = 0.5f * ReflectionColor(closestIntersectionItem, rayDirection, n, dotProduct) + 0.5f * triangles[closestIntersectionItem.triangleIndex].color;
+			return color;
+		}*/
 		else {
 			vec3 color = triangles[closestIntersectionItem.triangleIndex].color * (DirectLight(closestIntersectionItem) + indirectLight);
 			return color;
@@ -549,7 +555,7 @@ vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 	Intersection closestIntersectionItem;
 
 	//If an intersection exists
-	if (ClosestIntersection(intersection.position - 0.001f*t, -t, triangles, closestIntersectionItem)) {
+	if (ClosestIntersection(intersection.position + 0.001f*t, -t, triangles, closestIntersectionItem)) {
 
 		// --------------------------- 2 OPTIONS --------------------------------
 
@@ -568,6 +574,9 @@ vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 			normalTwo = NormaliseVec(normalTwo);
 
 			double dotProductTwo = (t.x * normalTwo.x) + (t.y * normalTwo.y) + (t.z * normalTwo.z);
+
+			etai = glass;
+			etat = air;
 
 			//Find the refraction direction of the exiting ray
 			vec4 secondT = RefractionDirection(-t, normalTwo, dotProductTwo);
@@ -590,7 +599,7 @@ vec3 RefractionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 		}
 	}
 	//If no intersection is found
-	return vec3(1, 1 , 1);//refractionColor;
+	return vec3(1, 1, 1);//refractionColor;
 }
 
 vec4 RefractionDirection(const vec4 i, const vec4 n, double dotProduct) {
