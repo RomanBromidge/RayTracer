@@ -519,7 +519,7 @@ vec3 ReflectionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 	Intersection closestIntersectionItem;
 
 	//Check if there is a SphereClosestIntersection with the reflection Ray
-	if (sphereClosestIntersection(intersection.position - 0.001f*r, -r, closestIntersectionItem)) {
+	if (sphereClosestIntersection(intersection.position + 0.001f*r, r, closestIntersectionItem)) {
 		if (recursionCount < 5) {
 			//If there is the closest intersection is with the shpere then we are inside the sphere are we want to have RECURSION
 			recursionCount++;
@@ -530,7 +530,7 @@ vec3 ReflectionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 			return vec3(0, 0, 0);
 		}
 	}
-	else if (ClosestIntersection(intersection.position - 0.001f*r, -r, triangles, closestIntersectionItem)) {
+	else if (ClosestIntersection(intersection.position + 0.001f*r, r, triangles, closestIntersectionItem)) {
 		if (closestIntersectionItem.distance>0.f) {
 			intersectionColor = triangles[closestIntersectionItem.triangleIndex].color;
 			return intersectionColor;
