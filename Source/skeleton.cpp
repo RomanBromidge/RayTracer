@@ -18,10 +18,10 @@ struct Intersection {
 	int triangleIndex;
 };
 
-//#define SCREEN_WIDTH 320
-//#define SCREEN_HEIGHT 256
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 500
+#define SCREEN_WIDTH 100
+#define SCREEN_HEIGHT 100
+// #define SCREEN_WIDTH 800
+// #define SCREEN_HEIGHT 500
 #define FULLSCREEN_MODE false
 
 //Variables to store the camera parameters
@@ -42,7 +42,7 @@ const float sphereRadius = 0.2;
 //Indeces of refraction
 float air = 1;
 float glass = 1.5;
-float etai = air; 
+float etai = air;
 float etat = glass;
 float eta = etai / etat;
 
@@ -152,7 +152,7 @@ bool ClosestIntersection(vec4 start, vec4 dir, const vector<Triangle>& triangles
 						closestIntersection.position = start + dir * t;
 						closestIntersection.distance = t;
 						closestIntersection.triangleIndex = i;
-						
+
 
 					}
 				}
@@ -497,7 +497,7 @@ vec3 CombineReflectionRefraction(const Intersection& intersection) {
 	double fresnelOrthogonal = costheta1;
 	double fresnelParallel = costheta2;
 	double fresnel = costheta2;
-	
+
 	//Call FresnelR to calculate the percentage that gets reflected
 	FresnelR(costheta1, costheta2, fresnelOrthogonal, fresnelParallel, fresnel);
 
@@ -622,7 +622,7 @@ void FresnelR(double costheta1, double costheta2, double fresnelOrthogonal, doub
 	fresnelOrthogonal = ((costheta2 - costheta1) / (costheta2 + costheta1)) * ((costheta2 - costheta1) / (costheta2 + costheta1));
 
 	fresnel = 0.5 * fresnelParallel * fresnelOrthogonal;
-	
+
 	return;
 }
 
