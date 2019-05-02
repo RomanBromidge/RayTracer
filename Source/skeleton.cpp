@@ -491,7 +491,7 @@ vec3 CombineReflectionRefraction(const Intersection& intersection) {
 
 	//Calculate angles for Fresnel
 	double costheta1 = angle(i, n);
-	double costheta2 = angle(n, -t);
+	double costheta2 = angle(n, t);
 
 	//Madness because Fresnel wasn't working
 	double fresnelOrthogonal = costheta1;
@@ -525,7 +525,7 @@ vec3 ReflectionColor(const Intersection& intersection, vec4 i, vec4 n, double do
 	Intersection closestIntersectionItem;
 
 	//Check if there is a SphereClosestIntersection with the reflection Ray
-	if (sphereClosestIntersection(intersection.position + 0.001f*r, r, closestIntersectionItem)) {
+	if (sphereClosestIntersection(intersection.position + 0.001f*r, +r, closestIntersectionItem)) {
 		if (recursionCount < 5) {
 			//If there is the closest intersection is with the shpere then we are inside the sphere are we want to have RECURSION
 			recursionCount++;
